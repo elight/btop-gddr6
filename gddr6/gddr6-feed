@@ -1,0 +1,72 @@
+#!/usr/bin/env python3
+"""Run gddr6 and write each NVIDIA card's VRAM temperature to /run/gddr6/gpu<N>.
+
+gddr6 needs root to read the card's registers; btop should not. This runs as
+root, and btop only reads the files it leaves behind. N is the NVML index, the
+same number nvidia-smi and btop use, so btop can find its own card's file.
+
+gddr6 prints one "Device: ... pci=B:D:F" line per card it could read, then a
+"VRAM Temps: | 78°C | 68°C |" line every second, separated by carriage returns,
+with the columns in the same order as the Device lines.
+"""
+import os
+import re
+import subprocess
+import sys
+
+OUT_DIR = "/run/gddr6"
+GDDR6 = os.environ.get("GDDR6_BIN", "/usr/local/bin/gddr6")
+
+DEVICE_RE = re.compile(r"^Device:.*pci=([0-9a-f]+):([0-9a-f]+):([0-9a-f]+)")
+TEMP_RE = re.compile(r"(-?\d+)°C")
+
+
+def nvml_index_by_pci():
+    """Map (bus, device, function) to the NVML index, as nvidia-smi reports it."""
+    out = subprocess.run(
+        ["nvidia-smi", "--query-gpu=index,pci.bus_id", "--format=csv,noheader"],
+        check=True, capture_output=True, text=True,
+    ).stdout
+    mapping = {}
+    for line in out.splitlines():
+        index, bus_id = (part.strip() for part in line.split(","))
+        # 00000000:01:00.0 -> (1, 0, 0)
+        _, bus, dev_fn = bus_id.split(":")
+        dev, fn = dev_fn.split(".")
+        mapping[(int(bus, 16), int(dev, 16), int(fn, 16))] = int(index)
+    return mapping
+
+
+def write_atomically(path, text):
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        f.write(text)
+    os.replace(tmp, path)
+
+
+def main():
+    os.makedirs(OUT_DIR, exist_ok=True)
+    os.chmod(OUT_DIR, 0o755)
+    by_pci = nvml_index_by_pci()
+    columns = []  # NVML index for each temperature column, in gddr6's order
+
+    # Universal newlines turn gddr6's carriage returns into line ends.
+    proc = subprocess.Popen([GDDR6], stdout=subprocess.PIPE, text=True, encoding="utf-8")
+    for line in proc.stdout:
+        line = line.strip()
+        if m := DEVICE_RE.match(line):
+            pci = tuple(int(part, 16) for part in m.groups())
+            if pci not in by_pci:
+                sys.exit(f"gddr6 found a card at pci={line.split('pci=')[1]} that nvidia-smi does not list")
+            columns.append(by_pci[pci])
+        elif line.startswith("VRAM Temps:"):
+            temps = TEMP_RE.findall(line)
+            if len(temps) != len(columns):
+                continue  # a partial line; the next one will be whole
+            for index, temp in zip(columns, temps):
+                write_atomically(f"{OUT_DIR}/gpu{index}", temp + "\n")
+    sys.exit(f"gddr6 exited with status {proc.wait()}")
+
+
+if __name__ == "__main__":
+    main()

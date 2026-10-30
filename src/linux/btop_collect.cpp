@@ -2223,6 +2223,17 @@ namespace Gpu {
 		Asysfs::collect<0>(gpus.data() + Nvml::device_count + Rsmi::device_count); // size = Asysfs::device_count
 		Intel::collect<0>(gpus.data() + Nvml::device_count + Rsmi::device_count + Asysfs::device_count); // size = Intel::device_count
 
+		//? btop-gddr6: VRAM temperature for NVIDIA cards, written by gddr6-feed as /run/gddr6/gpu<NVML index>
+		for (size_t i = 0; i < Nvml::device_count; i++) {
+			gpus[i].vram_temp = -1;
+			std::error_code ec;
+			const fs::path path = fmt::format("/run/gddr6/gpu{}", i);
+			const auto mtime = fs::last_write_time(path, ec);
+			if (ec or fs::file_time_type::clock::now() - mtime > std::chrono::seconds(5)) continue;
+			long long temp;
+			if (ifstream file(path); file >> temp) gpus[i].vram_temp = temp;
+		}
+
 		//* Calculate average usage
 		long long avg = 0;
 		long long mem_usage_total = 0;

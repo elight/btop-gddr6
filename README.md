@@ -1,3 +1,78 @@
+# btop-gddr6
+
+> **This is not the official btop.** It is an unofficial fork of
+> [aristocratos/btop](https://github.com/aristocratos/btop) with one change.
+> For btop itself, bug reports or anything not about VRAM temperature, go upstream.
+
+btop-gddr6 adds the **VRAM temperature** of NVIDIA GDDR6/GDDR6X cards to each
+GPU box, next to the `vram` title:
+
+```
+├─┐vram 84°C┌─────────┐9501 MHz
+```
+
+NVIDIA's driver library (NVML), which btop reads its GPU numbers from, does not
+report memory temperature. This fork gets it from gddr6 instead. Everything else
+is btop exactly as released; the fork is a single commit on top of an upstream
+release tag (currently `v1.4.8`).
+
+## Requirements
+
+- **[gddr6](https://github.com/olealgoritme/gddr6)**, installed at
+  `/usr/local/bin/gddr6`. It is **not** bundled: build and install it from its
+  repo first, and follow its prerequisites (it may need the `iomem=relaxed`
+  kernel parameter and Secure Boot turned off). Check it works with
+  `sudo gddr6` before going further.
+- An NVIDIA card on [gddr6's supported list](https://github.com/olealgoritme/gddr6#supported-gpus),
+  with the NVIDIA driver and `nvidia-smi`.
+- Linux with systemd.
+- A C++23 compiler: g++ 14 or newer. On Ubuntu 24.04, `sudo apt install g++-14`.
+
+Without gddr6 running, btop-gddr6 works exactly like btop and shows a plain `vram` title.
+
+## How it works
+
+gddr6 needs root to read the card's registers, and btop should not run as root.
+So a small service, `gddr6-feed`, runs gddr6 as root and writes each card's
+temperature to `/run/gddr6/gpu0`, `gpu1` and so on, once a second. btop reads
+those files and ignores any older than 5 seconds.
+
+## Install
+
+```bash
+git clone https://github.com/elight/btop-gddr6.git
+cd btop-gddr6
+gddr6/install.sh
+```
+
+`install.sh` builds btop, installs it to `/usr/local/bin/btop` (ahead of a
+distro btop in `/usr/bin` on most `PATH`s), installs and starts the
+`gddr6-feed` service, and prints the current readings. Set `CXX` to use a
+compiler other than `g++-14`.
+
+To remove it:
+
+```bash
+sudo systemctl disable --now gddr6-feed
+sudo rm /usr/local/bin/btop /usr/local/bin/gddr6-feed /etc/systemd/system/gddr6-feed.service
+```
+
+## Maintaining the fork
+
+[AGENTS.md](AGENTS.md) explains how the patch is laid out and how to carry it onto
+a new btop release.
+
+## Credit
+
+All of btop is the work of [aristocratos](https://github.com/aristocratos) and its
+contributors; the donate and sponsor links below go to them. gddr6 is by
+[olealgoritme](https://github.com/olealgoritme) and is not included here. btop and
+this fork are Apache-2.0.
+
+---
+
+*Everything below this line is the upstream btop README, unchanged.*
+
 # ![btop++](Img/logo.png)
 
 <a href="https://repology.org/project/btop/versions">

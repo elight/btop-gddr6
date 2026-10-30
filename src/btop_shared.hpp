@@ -163,6 +163,7 @@ namespace Gpu {
 
 		deque<long long> temp = {0};
 		long long temp_max = 110;
+		long long vram_temp = -1; // btop-gddr6: °C from /run/gddr6/gpuN, -1 when absent or stale
 
 		long long mem_total = 0;
 		long long mem_used = 0;

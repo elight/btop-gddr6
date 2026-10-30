@@ -1,0 +1,11 @@
+[Unit]
+Description=Feed GDDR6/GDDR6X VRAM temperatures to btop-gddr6 via /run/gddr6
+After=nvidia-persistenced.service
+
+[Service]
+ExecStart=/usr/local/bin/gddr6-feed
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

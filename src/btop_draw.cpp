@@ -1161,12 +1161,22 @@ namespace Gpu {
 			if (gpu.supported_functions.mem_total and gpu.supported_functions.mem_used) {
 				string used_memory_string = floating_humanizer(gpu.mem_used);
 
+				//? btop-gddr6: VRAM temperature next to the "vram" title, coloured on the same scale as the GPU temp
+				string vram_title = Theme::c("title") + "vram";
+				int vram_title_len = 4;
+				if (gpu.vram_temp >= 0 and Config::getB("check_temp")) {
+					const auto [vtemp, vunit] = celsius_to(gpu.vram_temp, temp_scale);
+					const string vtemp_str = to_string(vtemp);
+					vram_title += ' ' + Theme::g("temp").at(clamp(gpu.vram_temp * 100 / gpu.temp_max, 0ll, 100ll)) + vtemp_str + Theme::c("title") + vunit;
+					vram_title_len += 1 + vtemp_str.size() + ulen(vunit);
+				}
+
 				auto offset = (gpu.supported_functions.mem_total or gpu.supported_functions.mem_used)
 					* (1 + 2*(gpu.supported_functions.mem_total and gpu.supported_functions.mem_used) + 2*gpu.supported_functions.mem_utilization);
 
 				//? Used graph, memory section header, total vram
-				out += Theme::c("div_line") + Symbols::div_left + Symbols::h_line + Symbols::title_left + Fx::b + Theme::c("title") + "vram" + Theme::c("div_line") + Fx::ub + Symbols::title_right
-					+  Symbols::h_line*(b_width/2-8) + Symbols::div_up + Mv::d(offset)+Mv::l(1) + Symbols::div_down + Mv::l(1)+Mv::u(1) + (Symbols::v_line + Mv::l(1)+Mv::u(1))*(offset-1) + Symbols::div_up
+				out += Theme::c("div_line") + Symbols::div_left + Symbols::h_line + Symbols::title_left + Fx::b + vram_title + Theme::c("div_line") + Fx::ub + Symbols::title_right
+					+  Symbols::h_line*max(0, b_width/2-4-vram_title_len) + Symbols::div_up + Mv::d(offset)+Mv::l(1) + Symbols::div_down + Mv::l(1)+Mv::u(1) + (Symbols::v_line + Mv::l(1)+Mv::u(1))*(offset-1) + Symbols::div_up
 					+  Symbols::h_line + Theme::c("title") + "Used:" + Theme::c("div_line")
 					+  Symbols::h_line*(b_width/2+b_width%2-9-used_memory_string.size()) + Theme::c("title") + used_memory_string + Theme::c("div_line") + Symbols::h_line + Symbols::div_right
 					+  Mv::d(1) + Mv::l(b_width/2-1) + mem_used_graph(safeVal(gpu.gpu_percent, "gpu-vram-totals"s), (data_same or redraw[index]))
